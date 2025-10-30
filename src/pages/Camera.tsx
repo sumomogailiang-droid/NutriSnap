@@ -7,6 +7,8 @@ import { useStore } from '../store/store';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadMealImage, resizeImage } from '../utils/imageUpload';
 import { supabase } from '../lib/supabase';
+import { useSubscription } from '../hooks/useSubscription';
+import { PlanLimitModal } from '../components/PlanLimitModal';
 
 export function Camera() {
   const navigate = useNavigate();
@@ -15,8 +17,10 @@ export function Camera() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const setCurrentAnalysis = useStore((state) => state.setCurrentAnalysis);
   const addToast = useStore((state) => state.addToast);
+  const { canScan, incrementScanCount, remainingScans } = useSubscription(user?.id);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -32,6 +36,17 @@ export function Camera() {
 
   const handleAnalyze = async () => {
     if (!selectedFile || !user) return;
+
+    if (!canScan()) {
+      setShowLimitModal(true);
+      return;
+    }
+
+    const scanSuccess = await incrementScanCount();
+    if (!scanSuccess) {
+      setShowLimitModal(true);
+      return;
+    }
 
     setIsUploading(true);
 
@@ -208,6 +223,13 @@ export function Camera() {
           )}
         </div>
       )}
+
+      <PlanLimitModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType="daily_scans"
+        remainingScans={remainingScans()}
+      />
     </div>
   );
 }

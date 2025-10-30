@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Activity, Target, Ruler, Weight } from 'lucide-react';
+import { User, Save, Activity, Target, Ruler, Weight, Crown, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/store';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
+import { useSubscription } from '../hooks/useSubscription';
+import { PLAN_NAMES } from '../utils/planLimits';
 
 export function Profile() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const userProfile = useStore((state) => state.userProfile);
   const updateProfile = useStore((state) => state.updateProfile);
   const loadProfile = useStore((state) => state.loadProfile);
+  const { subscription, isTrialing, trialDaysRemaining } = useSubscription(user?.id);
 
   const [formData, setFormData] = useState(userProfile || {
     name: '',
@@ -108,7 +113,51 @@ export function Profile() {
         <p className="text-gray-600">あなたの情報を管理して、より正確な目標を設定できます</p>
       </div>
 
-      <Card className="mb-6 animate-fadeIn">
+      {subscription && (
+        <Card className="mb-6 bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-emerald-100 p-3 rounded-xl">
+                <Crown className="w-6 h-6 text-emerald-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  {PLAN_NAMES[subscription.plan_id]}プラン
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {subscription.status === 'active' && '有効'}
+                  {isTrialing() && `トライアル残り${trialDaysRemaining()}日`}
+                  {subscription.status === 'canceled' && '解約済み'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {subscription.plan_id === 'free' && (
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/pricing')}
+                  className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                >
+                  <Crown className="w-4 h-4 mr-1" />
+                  アップグレード
+                </Button>
+              )}
+              {subscription.plan_id !== 'free' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate('/subscription')}
+                >
+                  <Settings className="w-4 h-4 mr-1" />
+                  管理
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Card className="mb-6 animate-slideUp">
         <div className="flex items-center gap-4 mb-6">
           <div className="bg-emerald-100 p-4 rounded-full">
             <User className="w-8 h-8 text-emerald-500" />

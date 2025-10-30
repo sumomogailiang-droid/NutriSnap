@@ -1,16 +1,35 @@
 import React, { useState } from 'react';
-import { Flame, Trash2, Search, Calendar, Filter } from 'lucide-react';
+import { Flame, Trash2, Search, Calendar, Filter, Download } from 'lucide-react';
 import { useStore } from '../store/store';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
+import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../hooks/useSubscription';
+import { PlanLimitModal } from '../components/PlanLimitModal';
+import { UpgradePrompt } from '../components/UpgradePrompt';
 
 export function History() {
+  const { user } = useAuth();
   const meals = useStore((state) => state.meals);
   const removeMeal = useStore((state) => state.removeMeal);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>('all');
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitType, setLimitType] = useState<'history' | 'export'>('history');
+  const { subscription } = useSubscription(user?.id);
 
-  const groupedMeals = meals.reduce((groups, meal) => {
+  const planLimits = subscription ? { historyDays: subscription.plan_id === 'free' ? 7 : subscription.plan_id === 'premium' ? 30 : -1 } : { historyDays: 7 };
+
+  const filterMealsByPlan = (meals: typeof meals) => {
+    if (planLimits.historyDays === -1) return meals;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - planLimits.historyDays);
+    return meals.filter(meal => new Date(meal.timestamp) >= cutoffDate);
+  };
+
+  const filteredByPlan = filterMealsByPlan(meals);
+
+  const groupedMeals = filteredByPlan.reduce((groups, meal) => {
     const date = new Date(meal.timestamp).toLocaleDateString('ja-JP', {
       year: 'numeric',
       month: 'long',
@@ -32,8 +51,24 @@ export function History() {
   });
 
   const dates = Object.keys(groupedMeals);
-  const totalCalories = meals.reduce((sum, meal) => sum + meal.calories, 0);
-  const avgCalories = meals.length > 0 ? Math.round(totalCalories / meals.length) : 0;
+  const totalCalories = filteredByPlan.reduce((sum, meal) => sum + meal.calories, 0);
+  const avgCalories = filteredByPlan.length > 0 ? Math.round(totalCalories / filteredByPlan.length) : 0;
+
+  const handleExport = () => {
+    if (subscription?.plan_id === 'free') {
+      setLimitType('export');
+      setShowLimitModal(true);
+      return;
+    }
+    const csv = ['日時,食事名,カロリー,タンパク質,炭水化物,脂質'].concat(
+      filteredByPlan.map(m => `${m.timestamp},${m.name},${m.calories},${m.protein}g,${m.carbs}g,${m.fat}g`)
+    ).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `meal_history_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
@@ -57,7 +92,10 @@ export function History() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">総記録数</p>
-              <p className="text-3xl font-bold text-gray-900">{meals.length}</p>
+              <p className="text-3xl font-bold text-gray-900">{filteredByPlan.length}</p>
+              {planLimits.historyDays !== -1 && (
+                <p className="text-xs text-gray-500 mt-1">過去{planLimits.historyDays}日間</p>
+              )}
             </div>
             <div className="bg-emerald-100 p-3 rounded-lg">
               <Flame className="w-8 h-8 text-emerald-500" />
@@ -77,6 +115,14 @@ export function History() {
           </div>
         </Card>
       </div>
+
+      {subscription?.plan_id === 'free' && filteredByPlan.length > 0 && (
+        <UpgradePrompt
+          variant="banner"
+          message="もっと長期間の履歴を見る"
+          feature="Premiumプランで30日間以上の履歴保存・データエクスポート"
+        />
+      )}
 
       <Card className="mb-6 animate-slideUp">
         <div className="flex flex-col sm:flex-row gap-4">
@@ -106,6 +152,15 @@ export function History() {
               ))}
             </select>
           </div>
+
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            エクスポート
+          </Button>
         </div>
       </Card>
 
@@ -184,6 +239,12 @@ export function History() {
           </div>
         </Card>
       )}
+
+      <PlanLimitModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        limitType={limitType}
+      />
     </div>
   );
 }

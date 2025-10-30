@@ -13,6 +13,8 @@ import { History } from './pages/History';
 import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
+import { Pricing } from './pages/Pricing';
+import { Subscription } from './pages/Subscription';
 
 function App() {
   return (
@@ -35,6 +37,8 @@ function App() {
                       <Route path="/stats" element={<Stats />} />
                       <Route path="/history" element={<History />} />
                       <Route path="/profile" element={<Profile />} />
+                      <Route path="/pricing" element={<Pricing />} />
+                      <Route path="/subscription" element={<Subscription />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </main>
